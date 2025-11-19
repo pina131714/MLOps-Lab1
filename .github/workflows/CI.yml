@@ -1,4 +1,4 @@
-name: MLOps Lab 1 CI Pipeline
+name: CI
 
 on:
   push:
