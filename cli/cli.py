@@ -41,9 +41,6 @@ def predict_cli(filepath):
     except (IOError, ValueError) as e:
         # Catch specific image loading or data conversion errors
         click.echo(click.style(f"Error processing image: {e}", fg="red"))
-    except Exception as e:
-        # Catch other unexpected errors
-        click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
 
 # --- Command for Resizing ---
@@ -67,8 +64,6 @@ def resize_cli(filepath, width, height, output):
     except (IOError, ValueError) as e:
         # Catch errors related to file saving or dimension conversion
         click.echo(click.style(f"Error resizing image: {e}", fg="red"))
-    except Exception as e:
-        click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
 
 # --- Command for Image Info ---
@@ -88,8 +83,6 @@ def info_cli(filepath):
         click.echo(json.dumps(info, indent=4))
     except (IOError, ValueError) as e:
         click.echo(click.style(f"Error reading image info: {e}", fg="red"))
-    except Exception as e:
-        click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
 
 # --- Command for Grayscale ---
@@ -110,8 +103,6 @@ def grayscale_cli(filepath, output):
         click.echo(click.style(f"Grayscale image saved to {output}", fg="green"))
     except (IOError, ValueError) as e:
         click.echo(click.style(f"Error converting image: {e}", fg="red"))
-    except Exception as e:
-        click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
 
 # --- Command for Rotate ---
@@ -133,8 +124,6 @@ def rotate_cli(filepath, angle, output):
         click.echo(click.style(f"Rotated image saved to {output}", fg="green"))
     except (IOError, ValueError) as e:
         click.echo(click.style(f"Error rotating image: {e}", fg="red"))
-    except Exception as e:
-        click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
 
 # --- Command for Blur ---
@@ -156,8 +145,6 @@ def blur_cli(filepath, radius, output):
         click.echo(click.style(f"Blurred image saved to {output}", fg="green"))
     except (IOError, ValueError) as e:
         click.echo(click.style(f"Error blurring image: {e}", fg="red"))
-    except Exception as e:
-        click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
 
 # --- Command for Normalize ---
@@ -180,9 +167,6 @@ def normalize_cli(filepath):
         click.echo(f"  Max value: {np.max(norm_array):.4f}")
     except (IOError, ValueError) as e:
         click.echo(click.style(f"Error normalizing image: {e}", fg="red"))
-    except Exception as e:
-        click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
-
 
 # Main entry point
 if __name__ == "__main__":
