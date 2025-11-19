@@ -6,7 +6,6 @@ import click
 import json
 from PIL import Image
 import numpy as np
-import io # Added for completeness, though not strictly needed here
 
 # Import your new image processing functions
 from mylib.image_processor import (
@@ -39,11 +38,11 @@ def predict_cli(filepath):
         with Image.open(filepath) as img:
             prediction = predict_image(img)
         click.echo(click.style(f"Prediction: {prediction}", fg="green"))
-    except IOError as e:
-        # Catch specific I/O errors (e.g., file corrupted, not an image)
-        click.echo(click.style(f"Error processing image file (I/O): {e}", fg="red"))
+    except (IOError, ValueError) as e:
+        # Catch specific image loading or data conversion errors
+        click.echo(click.style(f"Error processing image: {e}", fg="red"))
     except Exception as e:
-        # Catch other unexpected runtime errors
+        # Catch other unexpected errors
         click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
 
@@ -66,7 +65,7 @@ def resize_cli(filepath, width, height, output):
         resized_img.save(output)
         click.echo(click.style(f"Image resized and saved to {output}", fg="green"))
     except (IOError, ValueError) as e:
-        # Catch I/O errors or value errors (e.g., invalid dimensions)
+        # Catch errors related to file saving or dimension conversion
         click.echo(click.style(f"Error resizing image: {e}", fg="red"))
     except Exception as e:
         click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
@@ -87,8 +86,8 @@ def info_cli(filepath):
             info = get_image_info(img)
         # Use json.dumps for a nicely formatted dictionary output
         click.echo(json.dumps(info, indent=4))
-    except IOError as e:
-        click.echo(click.style(f"Error reading image file (I/O): {e}", fg="red"))
+    except (IOError, ValueError) as e:
+        click.echo(click.style(f"Error reading image info: {e}", fg="red"))
     except Exception as e:
         click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
@@ -109,8 +108,8 @@ def grayscale_cli(filepath, output):
             gray_img = convert_to_grayscale(img)
         gray_img.save(output)
         click.echo(click.style(f"Grayscale image saved to {output}", fg="green"))
-    except IOError as e:
-        click.echo(click.style(f"Error converting image (I/O): {e}", fg="red"))
+    except (IOError, ValueError) as e:
+        click.echo(click.style(f"Error converting image: {e}", fg="red"))
     except Exception as e:
         click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
@@ -155,8 +154,8 @@ def blur_cli(filepath, radius, output):
             blurred_img = apply_blur(img, radius)
         blurred_img.save(output)
         click.echo(click.style(f"Blurred image saved to {output}", fg="green"))
-    except IOError as e:
-        click.echo(click.style(f"Error blurring image (I/O): {e}", fg="red"))
+    except (IOError, ValueError) as e:
+        click.echo(click.style(f"Error blurring image: {e}", fg="red"))
     except Exception as e:
         click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
@@ -179,8 +178,8 @@ def normalize_cli(filepath):
         click.echo(f"  Mean value: {np.mean(norm_array):.4f}")
         click.echo(f"  Min value: {np.min(norm_array):.4f}")
         click.echo(f"  Max value: {np.max(norm_array):.4f}")
-    except IOError as e:
-        click.echo(click.style(f"Error normalizing image (I/O): {e}", fg="red"))
+    except (IOError, ValueError) as e:
+        click.echo(click.style(f"Error normalizing image: {e}", fg="red"))
     except Exception as e:
         click.echo(click.style(f"An unexpected error occurred: {e}", fg="red"))
 
