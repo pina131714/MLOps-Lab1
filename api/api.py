@@ -75,7 +75,7 @@ async def resize(
     """
     Resizes an image.
     Expects 'multipart/form-data' with 'file', 'width', and 'height' fields.
-    Returns the resized image as JPEG.
+    Returns the resized image as a downloadable JPEG file.
     """
     try:
         # Our resize_image function takes a file-like object directly
@@ -86,7 +86,11 @@ async def resize(
         resized_img.save(buffer, format="JPEG")
         buffer.seek(0)
         
-        return StreamingResponse(buffer, media_type="image/jpeg")
+        return StreamingResponse(
+            buffer, 
+            media_type="image/jpeg",
+            headers={"Content-Disposition": "attachment; filename=resized_image.jpg"}
+        )
     except Exception as e:
         # Pylint Fix (W0707): Explicit exception chaining
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -112,7 +116,7 @@ async def grayscale(file: UploadFile = File(...)):
     """
     Converts an image to grayscale.
     Expects 'multipart/form-data' with a 'file' field.
-    Returns the grayscale image as PNG.
+    Returns the grayscale image as a downloadable PNG file.
     """
     try:
         image = await load_image_from_uploadfile(file)
@@ -122,7 +126,11 @@ async def grayscale(file: UploadFile = File(...)):
         gray_img.save(buffer, format="PNG")
         buffer.seek(0)
         
-        return StreamingResponse(buffer, media_type="image/png")
+        return StreamingResponse(
+            buffer, 
+            media_type="image/png",
+            headers={"Content-Disposition": "attachment; filename=grayscale_image.png"}
+        )
     except Exception as e:
         # Pylint Fix (W0707): Explicit exception chaining
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -136,7 +144,7 @@ async def rotate(
     """
     Rotates an image by a given angle.
     Expects 'multipart/form-data' with 'file' and 'angle' fields.
-    Returns the rotated image as PNG.
+    Returns the rotated image as a downloadable PNG file.
     """
     try:
         image = await load_image_from_uploadfile(file)
@@ -147,7 +155,11 @@ async def rotate(
         rotated_img.save(buffer, format="PNG")
         buffer.seek(0)
         
-        return StreamingResponse(buffer, media_type="image/png")
+        return StreamingResponse(
+            buffer, 
+            media_type="image/png",
+            headers={"Content-Disposition": "attachment; filename=rotated_image.png"}
+        )
     except Exception as e:
         # Pylint Fix (W0707): Explicit exception chaining
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -161,7 +173,7 @@ async def blur(
     """
     Applies a Gaussian blur to an image.
     Expects 'multipart/form-data' with 'file' and optional 'radius'.
-    Returns the blurred image as JPEG.
+    Returns the blurred image as a downloadable JPEG file.
     """
     try:
         image = await load_image_from_uploadfile(file)
@@ -171,7 +183,11 @@ async def blur(
         blurred_img.save(buffer, format="JPEG")
         buffer.seek(0)
         
-        return StreamingResponse(buffer, media_type="image/jpeg")
+        return StreamingResponse(
+            buffer, 
+            media_type="image/jpeg",
+            headers={"Content-Disposition": "attachment; filename=blurred_image.jpg"}
+        )
     except Exception as e:
         # Pylint Fix (W0707): Explicit exception chaining
         raise HTTPException(status_code=500, detail=str(e)) from e
