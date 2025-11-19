@@ -1,115 +1,139 @@
 """
 Integration testing with the API
-
 """
 import io
-import json
 import pytest
-from api.api import app
+from PIL import Image
 from fastapi.testclient import TestClient
+from api.api import app
 
+# --- Fixtures ---
 
 @pytest.fixture
 def client():
     """Testing client from FastAPI."""
     return TestClient(app)
 
+@pytest.fixture
+def dummy_image_bytes():
+    """
+    Creates a simple 100x100 RGB red image in memory.
+    Returns the bytes, ready to be sent as a file.
+    """
+    img = Image.new("RGB", (100, 100), color="red")
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG')
+    img_byte_arr.seek(0)  # Reset pointer to the beginning
+    return img_byte_arr
+
+# --- Tests ---
 
 def test_home_endpoint(client):
-    """Verify that the endpoint / returns the right message."""
+    """Verify that the home endpoint returns 200 OK."""
     response = client.get("/")
     assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
 
-
-def test_calculate_add(client):
-    """Verify that the endpoint /calculate performs the sum correctly."""
-    response = client.post(
-        "/calculate",
-        data={"op": "add", "a": 5, "b": 3},
-    )
+def test_predict_endpoint(client, dummy_image_bytes):
+    """Verify that /predict returns a prediction."""
+    # We simulate a file upload. 
+    # Key "file" matches the name in the API function: file: UploadFile = File(...)
+    files = {"file": ("test_image.jpg", dummy_image_bytes, "image/jpeg")}
+    
+    response = client.post("/predict", files=files)
+    
     assert response.status_code == 200
     data = response.json()
-    assert "result" in data
-    assert data["result"] == 8
+    assert "prediction" in data
+    assert isinstance(data["prediction"], str)
 
-def test_calculate_subtract(client):
-    """Verify that the endpoint /calculate performs the subtract correctly."""
-    response = client.post(
-        "/calculate",
-        data={"op": "subtract", "a": 5, "b": 3},
-    )
+def test_resize_endpoint(client, dummy_image_bytes):
+    """Verify that /resize returns an image with the correct dimensions."""
+    files = {"file": ("test_image.jpg", dummy_image_bytes, "image/jpeg")}
+    # Form data must be sent as a dictionary
+    data = {"width": "50", "height": "50"}
+    
+    response = client.post("/resize", files=files, data=data)
+    
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
+    
+    # Verify the output image size
+    resized_image = Image.open(io.BytesIO(response.content))
+    assert resized_image.size == (50, 50)
+
+def test_info_endpoint(client, dummy_image_bytes):
+    """Verify that /info returns correct metadata."""
+    files = {"file": ("test_image.jpg", dummy_image_bytes, "image/jpeg")}
+    
+    response = client.post("/info", files=files)
+    
     assert response.status_code == 200
     data = response.json()
-    assert "result" in data
-    assert data["result"] == 2
+    assert data["width"] == 100
+    assert data["height"] == 100
+    assert data["format"] == "JPEG"
 
-def test_calculate_multiply(client):
-    """Verify that the endpoint /calculate performs the multiply correctly."""
-    response = client.post(
-        "/calculate",
-        data={"op": "multiply", "a": 5, "b": 3},
-    )
+def test_grayscale_endpoint(client, dummy_image_bytes):
+    """Verify that /grayscale returns a PNG image."""
+    files = {"file": ("test_image.jpg", dummy_image_bytes, "image/jpeg")}
+    
+    response = client.post("/grayscale", files=files)
+    
+    assert response.status_code == 200
+    # Our API converts grayscale to PNG
+    assert response.headers["content-type"] == "image/png"
+
+def test_rotate_endpoint(client, dummy_image_bytes):
+    """Verify that /rotate works with an angle."""
+    files = {"file": ("test_image.jpg", dummy_image_bytes, "image/jpeg")}
+    data = {"angle": "90"}
+    
+    response = client.post("/rotate", files=files, data=data)
+    
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+
+def test_blur_endpoint(client, dummy_image_bytes):
+    """Verify that /blur works with a radius."""
+    files = {"file": ("test_image.jpg", dummy_image_bytes, "image/jpeg")}
+    data = {"radius": "5"}
+    
+    response = client.post("/blur", files=files, data=data)
+    
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
+
+def test_normalize_endpoint(client, dummy_image_bytes):
+    """Verify that /normalize returns statistics."""
+    files = {"file": ("test_image.jpg", dummy_image_bytes, "image/jpeg")}
+    
+    response = client.post("/normalize", files=files)
+    
     assert response.status_code == 200
     data = response.json()
-    assert "result" in data
-    assert data["result"] == 15
+    assert "mean" in data
+    assert "shape" in data
 
-def test_calculate_divide(client):
-    """Verify that the endpoint /calculate performs the divide correctly."""
-    response = client.post(
-        "/calculate",
-        data={"op": "divide", "a": 6, "b": 3},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "result" in data
-    assert data["result"] == 2
+# --- Negative / Error Tests ---
 
-def test_calculate_divide_by_zero(client):
-    """Verify that the endpoint /calculate manages correctly the division by zero."""
-    response = client.post("/calculate", data={"op": "divide", "a": 5, "b": 0})
-    assert response.status_code == 400
-    data = response.json()
-    assert "detail" in data
-    assert data["detail"] == "Zero division not allowed"
+def test_resize_missing_parameters(client, dummy_image_bytes):
+    """Verify validation error when form data is missing."""
+    files = {"file": ("test_image.jpg", dummy_image_bytes, "image/jpeg")}
+    # Missing 'width' and 'height'
+    
+    response = client.post("/resize", files=files)
+    
+    # FastAPI returns 422 Unprocessable Entity for missing required form fields
+    assert response.status_code == 422
 
-def test_calculate_power(client):
-    """Verify that the endpoint /calculate performs the power correctly."""
-    response = client.post(
-        "/calculate",
-        data={"op": "power", "a": 2, "b": 3},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "result" in data
-    assert data["result"] == 8
-
-def test_calculate_invalid_operation(client):
-    """Verify that the endpoint /calculate manages correctly unvalid operations."""
-    response = client.post(
-        "/calculate", data={"op": "invalid_op", "a": 5, "b": 3}
-    )
-    assert response.status_code == 400
-    data = response.json()
-    assert "detail" in data
-    assert data["detail"] == "Unvalid operation"
-
-
-def test_calculate_invalid_parameters(client):
-    """Verify that the endpoint /calculate manages correctly unvalid parameters."""
-    response = client.post("/calculate", data={"op": "add", "a": "five", "b": 3})
-    assert (
-        response.status_code == 422 # FastAPI returns 422 for validation errors
-    )  
-    data = response.json()
-    assert "detail" in data
-
-
-def test_calculate_missing_parameters(client):
-    """Verify that the endpoint /calculate manages correctly missing parameters."""
-    response = client.post("/calculate", data={"op": "add", "a": 5})  # 'b' missed
-    assert (
-        response.status_code == 422 # FastAPI returns 422 for validation errors
-    )
-    data = response.json()
-    assert "detail" in data
+def test_invalid_image_file(client):
+    """Verify error handling for invalid image files."""
+    # Sending a text file instead of an image
+    files = {"file": ("test.txt", b"this is not an image", "text/plain")}
+    
+    response = client.post("/predict", files=files)
+    
+    # Depending on your API implementation, this might be 400 or 500.
+    # In our api.py we catch exceptions and return 500 or 400 for bad images.
+    assert response.status_code in [400, 500]

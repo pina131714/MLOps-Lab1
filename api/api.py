@@ -1,17 +1,29 @@
 # Import the libraries, classes and functions
 import uvicorn
-from fastapi import FastAPI, Form, HTTPException
+import io
+import json
+import numpy as np
+from PIL import Image
+from fastapi import FastAPI, Form, File, UploadFile, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 
-# from pydantic import BaseModel
-from mylib.calculator import add, subtract, multiply, divide, power
+# Import your image processing functions
+from mylib.image_processor import (
+    predict_image,
+    resize_image,
+    convert_to_grayscale,
+    rotate_image,
+    apply_blur,
+    normalize_image,
+    get_image_info
+)
 
 # Create an instance of FastAPI
 app = FastAPI(
-    title="API of the Calculator using FastAPI",
-    description="API to perform arithmetical operations using mylib.calculator",
+    title="API for Image Processing",
+    description="API to perform image processing operations using mylib.image_processor",
     version="1.0.0",
 )
 
@@ -19,75 +31,167 @@ app = FastAPI(
 templates = Jinja2Templates(directory="templates")
 
 
-# Initial endpoint
+# --- Utility function to load image ---
+# This is a helper to avoid repeating code
+async def load_image_from_uploadfile(file: UploadFile) -> Image.Image:
+    """Reads an UploadFile and converts it to a PIL Image."""
+    try:
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents))
+        return image
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid image file: {e}")
+
+
+# --- Endpoints ---
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
+    """Serves the home.html page."""
     return templates.TemplateResponse(request, "home.html")
 
 
-# # Input class (with Pydantic) to define the input arguments of the calculator
-# class CalcRequest(BaseModel):
-#     operation: str
-#     a: float
-#     b: float
-
-
-# Main endpoint to perform the artihmetical operations using the input class defined with Pydantic
-@app.post("/calculate")
-async def calculate(op: str = Form(), a: float = Form(), b: float = Form()):
+@app.post("/predict")
+async def predict(file: UploadFile = File(...)):
     """
-    It performs an arithmetical operation according to the input parameters.
+    Predicts the class of an image (randomly).
+    Expects a 'multipart/form-data' with a 'file' field.
     """
-    op = op.lower()
-
-    if op not in ["add", "subtract", "multiply", "divide", "power"]:
-        raise HTTPException(status_code=400, detail="Unvalid operation")
-
-    result = None
-    if op == "add":
-        result = add(a, b)
-    elif op == "subtract":
-        result = subtract(a, b)
-    elif op == "multiply":
-        result = multiply(a, b)
-    elif op == "divide":
-        if b == 0:
-            raise HTTPException(status_code=400, detail="Zero division not allowed")
-        result = divide(a, b)
-    elif op == "power":
-        result = power(a, b)
-
-    return {"result": result}
+    try:
+        image = await load_image_from_uploadfile(file)
+        prediction = predict_image(image)
+        return {"prediction": prediction}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# # Main endpoint to perform the artihmetical operations using the input class defined with Pydantic
-# @app.post("/calculate")
-# def calculate(data: CalcRequest):
-#     """
-#     It performs an arithmetical operation according to the input parameters.
-#     """
-#     op = data.operation.lower()
-#     a = data.a
-#     b = data.b
+@app.post("/resize", response_class=StreamingResponse)
+async def resize(
+    file: UploadFile = File(...),
+    width: int = Form(...),
+    height: int = Form(...)
+):
+    """
+    Resizes an image.
+    Expects 'multipart/form-data' with 'file', 'width', and 'height' fields.
+    Returns the resized image as JPEG.
+    """
+    try:
+        # Our resize_image function takes a file-like object directly
+        resized_img = resize_image(file.file, width, height)
+        
+        # Save resized image to a memory buffer
+        buffer = io.BytesIO()
+        resized_img.save(buffer, format="JPEG")
+        buffer.seek(0)
+        
+        return StreamingResponse(buffer, media_type="image/jpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-#     if op not in ["add", "subtract", "multiply", "divide", "power"]:
-#         raise HTTPException(status_code=400, detail="Unvalid operation")
 
-#     result = None
-#     if op == "add":
-#         result = add(a, b)
-#     elif op == "subtract":
-#         result = subtract(a, b)
-#     elif op == "multiply":
-#         result = multiply(a, b)
-#     elif op == "divide":
-#         if b == 0:
-#             raise HTTPException(status_code=400, detail="Zero division not allowed")
-#         result = divide(a, b)
-#     elif op == "power":
-#         result = power(a, b)
+@app.post("/info")
+async def info(file: UploadFile = File(...)):
+    """
+    Gets metadata from an image (size, mode, format, etc.).
+    Expects 'multipart/form-data' with a 'file' field.
+    """
+    try:
+        image = await load_image_from_uploadfile(file)
+        info = get_image_info(image)
+        return info
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-#     return {"result": result}
+
+@app.post("/grayscale", response_class=StreamingResponse)
+async def grayscale(file: UploadFile = File(...)):
+    """
+    Converts an image to grayscale.
+    Expects 'multipart/form-data' with a 'file' field.
+    Returns the grayscale image as PNG.
+    """
+    try:
+        image = await load_image_from_uploadfile(file)
+        gray_img = convert_to_grayscale(image)
+        
+        buffer = io.BytesIO()
+        gray_img.save(buffer, format="PNG")
+        buffer.seek(0)
+        
+        return StreamingResponse(buffer, media_type="image/png")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/rotate", response_class=StreamingResponse)
+async def rotate(
+    file: UploadFile = File(...),
+    angle: float = Form(...)
+):
+    """
+    Rotates an image by a given angle.
+    Expects 'multipart/form-data' with 'file' and 'angle' fields.
+    Returns the rotated image as PNG.
+    """
+    try:
+        image = await load_image_from_uploadfile(file)
+        rotated_img = rotate_image(image, angle)
+        
+        buffer = io.BytesIO()
+        # Use PNG for rotate as it might create transparent areas
+        rotated_img.save(buffer, format="PNG")
+        buffer.seek(0)
+        
+        return StreamingResponse(buffer, media_type="image/png")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/blur", response_class=StreamingResponse)
+async def blur(
+    file: UploadFile = File(...),
+    radius: int = Form(default=2)
+):
+    """
+    Applies a Gaussian blur to an image.
+    Expects 'multipart/form-data' with 'file' and optional 'radius'.
+    Returns the blurred image as JPEG.
+    """
+    try:
+        image = await load_image_from_uploadfile(file)
+        blurred_img = apply_blur(image, radius)
+        
+        buffer = io.BytesIO()
+        blurred_img.save(buffer, format="JPEG")
+        buffer.seek(0)
+        
+        return StreamingResponse(buffer, media_type="image/jpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/normalize")
+async def normalize(file: UploadFile = File(...)):
+    """
+    Normalizes an image and returns its statistics.
+    Expects 'multipart/form-data' with a 'file' field.
+    """
+    try:
+        image = await load_image_from_uploadfile(file)
+        norm_array = normalize_image(image)
+        
+        # Returning the full array as JSON is too large
+        # Return statistics instead, similar to the CLI
+        return {
+            "message": "Image normalized successfully",
+            "shape": norm_array.shape,
+            "mean": float(np.mean(norm_array)),
+            "min": float(np.min(norm_array)),
+            "max": float(np.max(norm_array)),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Entry point (for direct execution only)
